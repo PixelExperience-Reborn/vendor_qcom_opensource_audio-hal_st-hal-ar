@@ -29,6 +29,14 @@ A Sony-hosted Qualcomm-derived `AUDIO.LA.10.0.r1` checkout changes the front end
 
 AOSPA September 2026 `calcite-8650` is newer by date and has a Soong `Android.bp`, but its `target_board_platform_cc_library_shared` names the binary **`sound_trigger.primary.%s`** and continues using the old `SoundTriggerDevice.cpp`. Newer *timestamp*, *Soong syntax*, or a newer SoC class are insufficient to select the best Android17 interface implementation. Compare actual exported APIs and matched Xiaomi hardware.
 
+## Confirmed static CI — 2024 and 2026 legacy versus modern AIDL
+
+[GitHub Actions #42328219440](https://github.com/PixelExperience-Reborn/vendor_qcom_opensource_audio-hal_st-hal-ar/actions/runs/42328219440) completed **SUCCESS**. Source checker pinned six exact commit/tree identities: original 2024 PE PAL STHAL, PE old 2023 C/GCS ST, AOSPA September 2026 legacy `calcite-8650`, Sony-hosted modern Qualcomm AIDL ST and primary Audio HAL, and the actual PE AOSP17 `hardware_interfaces` snapshot.
+
+Verified conclusions: (1) 2024 PAL source is still a native `sound_trigger_hw_device` frontend; (2) 2026 AOSPA Soong uses **namespaced `:libar-pal`** but still exports `sound_trigger.primary.%s` — not modern ST AIDL; (3) `AUDIO.LA.10.0.r1` exports `libsoundtriggerhal.qti` plus AIDL V1 factory, with Android17 primary Core AIDL V3/Effects V4; (4) PE AOSP17 SoundTrigger3 stable AIDL V1–V4 remains untouched. The manifest regression suite passed **50/50 tests** and all **25** active review stages, while preserving exactly six nondefault modern Qualcomm-derived source pins and the safe `default.xml`.
+
+The first source gate attempt incorrectly expected an unnamespaced `"libar-pal"` Soong dependency in the newer AOSPA branch. GitHub CI caught the overly strict test. It was corrected to match the actual `":libar-pal"` namespaced dependency, followed by the confirmed passing run. This is a **source review and test correction**, not a Qualcomm DSP or device build result.
+
 ## Board-specific and safety requirements
 
 - `mondrian` is SM8475 `taro`-family, **not** `calcite-8650` or a Sony product. Stock Xiaomi vendor soundtrigger service, ADSP topology, codec/mixer controls, sound model ABI, audio policy and microphone arrays are **not yet verified**.
