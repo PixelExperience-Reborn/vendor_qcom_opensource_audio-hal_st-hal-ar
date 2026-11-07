@@ -113,7 +113,7 @@ def newer_date_not_newer_interface(root):
         "target_board_platform_cc_library_shared",
         'name: "sound_trigger.primary.%s"',
         '"SoundTriggerDevice.cpp"', '"SoundTriggerSession.cpp"',
-        '"libar-pal"', '"libhidlbase"',
+        ":libar-pal", '"libhidlbase"',
     ):
         require(token in bp,
                 "newly dated AOSPA legacy ST module changed: " + token)
