@@ -1,0 +1,95 @@
+name: Android17 AudioReach legacy ST HAL vs modern SoundTrigger3 AIDL
+
+on:
+  push:
+    branches:
+      - audit/a17-qcom-audioreach-legacy-vs-aidl-20261107
+    paths:
+      - 'docs/ANDROID_17_QCOM_STHAL_AR_AIDL_AUDIT.md'
+      - 'audit/check_qcom_sthal_ar_aidl.py'
+      - '.github/workflows/a17-qcom-sthal-ar-aidl-boundary.yml'
+  pull_request:
+    paths:
+      - 'docs/ANDROID_17_QCOM_STHAL_AR_AIDL_AUDIT.md'
+      - 'audit/check_qcom_sthal_ar_aidl.py'
+      - '.github/workflows/a17-qcom-sthal-ar-aidl-boundary.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  historical-pal-and-modern-qualcomm-aidl:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Checkout isolated old PAL STHAL source audit
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+      - name: Fetch exact 2024 original PAL SoundTrigger HAL
+        run: |
+          git fetch -q --no-tags --depth=1 origin \
+            +refs/heads/seventeen:refs/remotes/origin/seventeen
+      - name: Fetch 2023 legacy GCS/LSM SoundTrigger for complement
+        run: |
+          git init -q "$RUNNER_TEMP/old-gcs"
+          git -C "$RUNNER_TEMP/old-gcs" remote add origin \
+            https://github.com/PixelExperience-Reborn/vendor_qcom_opensource_audio-hal_st-hal.git
+          git -C "$RUNNER_TEMP/old-gcs" fetch -q --no-tags \
+            --filter=blob:none --depth=1 origin \
+            +refs/heads/seventeen:refs/remotes/origin/seventeen
+      - name: Fetch September 2026 newer-dated but legacy AudioReach variant
+        run: |
+          git init -q "$RUNNER_TEMP/new-date-old-interface"
+          git -C "$RUNNER_TEMP/new-date-old-interface" remote add origin \
+            https://github.com/AOSPA/android_vendor_qcom_opensource_audio-hal_st-hal-ar.git
+          git -C "$RUNNER_TEMP/new-date-old-interface" fetch -q --no-tags \
+            --filter=blob:none --depth=1 origin \
+            +refs/heads/calcite-8650:refs/remotes/origin/calcite-8650
+      - name: Fetch actual modern Qualcomm-derived SoundTrigger3 AIDL and primary service
+        run: |
+          set -euo pipefail
+          fetch_source() {
+            local dst="$1" name="$2"
+            git init -q "$RUNNER_TEMP/$dst"
+            git -C "$RUNNER_TEMP/$dst" remote add origin \
+              "https://github.com/sonyxperiadev/$name.git"
+            git -C "$RUNNER_TEMP/$dst" fetch -q --no-tags \
+              --filter=blob:none --depth=1 origin \
+              +refs/heads/aosp/AUDIO.LA.10.0.r1:refs/remotes/origin/aosp/AUDIO.LA.10.0.r1
+          }
+          fetch_source new-aidl vendor-qcom-opensource-audio-hal-st-hal-ar
+          fetch_source new-primary vendor-qcom-opensource-audio-hal-primary-hal-ar
+      - name: Fetch selected independent PE AOSP17 frozen SoundTrigger3 source
+        run: |
+          git init -q "$RUNNER_TEMP/pe-aosp17-interfaces"
+          git -C "$RUNNER_TEMP/pe-aosp17-interfaces" remote add origin \
+            https://github.com/PixelExperience-Reborn/hardware_interfaces.git
+          git -C "$RUNNER_TEMP/pe-aosp17-interfaces" fetch -q --no-tags \
+            --filter=blob:none --depth=1 origin \
+            +refs/heads/port/a17-hardware-interfaces-pe-20261103:refs/remotes/origin/port/a17-hardware-interfaces-pe-20261103
+      - name: Fetch AOSP17 working manifest with strict six-source preview
+        run: |
+          git clone -q --depth=1 \
+            --branch port/a17-aosp17-manifest-20261102 \
+            https://github.com/PixelExperience-Reborn/manifest.git \
+            "$RUNNER_TEMP/manifest"
+      - name: Pin and distinguish old PAL vs AIDL SoundTrigger sources
+        run: |
+          python3 audit/check_qcom_sthal_ar_aidl.py \
+            "$GITHUB_WORKSPACE" "$RUNNER_TEMP/old-gcs" \
+            "$RUNNER_TEMP/new-date-old-interface" \
+            "$RUNNER_TEMP/new-aidl" "$RUNNER_TEMP/new-primary" \
+            "$RUNNER_TEMP/pe-aosp17-interfaces" "$RUNNER_TEMP/manifest"
+      - name: Run full AOSP17 source-graph adversarial tests
+        run: |
+          cd "$RUNNER_TEMP/manifest"
+          python3 -m unittest discover -s tools \
+            -p test_aosp17_manifest_entrypoint.py -v
+      - name: State source-only scope
+        run: |
+          echo "PASS: pinned 2024/2026 legacy PAL vs verified new Qualcomm AIDL V1."
+          echo "NOT TESTED: Soong/NDK, DSP/ACDB vendor blobs, VINTF, SELinux,"
+          echo "hotword mic privacy, Audio Core/Effects vendor ABI, CTS/VTS, mondrian."
+          echo "Modern six-source AudioReach profile remains isolated, not default."
